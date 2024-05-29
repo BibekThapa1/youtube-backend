@@ -2,14 +2,19 @@
   "name": "professional-backend",
   "version": "1.0.0",
   "description": "The real backend stars here",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "nodemon ./src/index.js"
   },
   "keywords": [
     "node",
     "Bibek"
   ],
   "author": "Bibek Thapa",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "nodemon": "^3.1.1",
+    "prettier": "^3.2.5"
+  }
 }
