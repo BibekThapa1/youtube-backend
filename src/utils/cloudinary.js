@@ -15,6 +15,7 @@ async function uploadOnCloudinary(localFilePath) {
     });
     // file has been uploaded suscessfully
     console.log("File Upload Response: ", uploadResult);
+    fs.unlinkSync(localFilePath)
     return uploadResult;
   } catch (error) {
     fs.unlinkSync(localFilePath);
