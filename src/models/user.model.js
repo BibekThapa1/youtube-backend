@@ -58,12 +58,12 @@ userSchema.pre("save", async function (next) {
   next();
 });
 userSchema.methods.checkPassword = async function (password) {
-  return await bcrypt.compare(this.password, password);
+  return await bcrypt.compare( password,this.password);
 };
 userSchema.methods.generateAscessToken = function () {
-  jwt.sign(
+ return  jwt.sign(
     {
-      _id: this.id,
+      _id: this._id,
       email: this.email,
       username: this.username,
       fullname: this.fullname,
@@ -75,13 +75,13 @@ userSchema.methods.generateAscessToken = function () {
   );
 };
 userSchema.methods.generateRefreshToken = function () {
-  jwt.sign(
+ return jwt.sign(
     {
-      _id: this.id,
+      _id: this._id,
     },
     process.env.REFRESH_TOKEN_SECRET,
     {
-      expiresIn: REFRESH_TOKEN_EXPIRY,
+      expiresIn: process.env.REFRESH_TOKEN_EXPIRY,
     }
   );
 };

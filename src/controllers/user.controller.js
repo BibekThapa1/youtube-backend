@@ -9,7 +9,6 @@ const generateToken = async (userId) => {
     const user = await User.findById(userId);
     const ascessToken = await user.generateAscessToken();
     const refreshToken = await user.generateRefreshToken();
-
     user.refreshToken = refreshToken;
     await user.save({ validateBeforeSave: false });
 
@@ -34,7 +33,6 @@ const registerUser = asyncHandler(async (req, res) => {
   // return response(res)
 
   const { username, fullname, email, password } = req.body;
-  console.log(username, fullname, email, password);
 
   // res.status(200).json({
   //     message:"ok"
@@ -46,7 +44,6 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All the user fileds are necessary");
   }
 
-  console.log("1");
 
   const userExisted = await User.findOne({
     $or: [{ username }, { email }],
@@ -56,7 +53,6 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(409, "Username or emails already exists.");
   }
 
-  console.log("2");
 
   const avatarLocalPath = req.files?.avatar[0]?.path;
   //   cont coverImageLocalPath = req.files?.coverImage[0]?.path;
@@ -81,7 +77,6 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Error while uploading data.");
   }
 
-  console.log("3");
 
   const user = await User.create({
     fullname,
@@ -92,7 +87,6 @@ const registerUser = asyncHandler(async (req, res) => {
     username: username.toLowerCase(),
   });
 
-  console.log("4");
 
   const createdUser = await User.findById(user._id).select(
     "-password -refreshToken"
@@ -102,7 +96,6 @@ const registerUser = asyncHandler(async (req, res) => {
     return new ApiError(500, "Something went wrong while registering user.");
   }
 
-  console.log("5");
 
   return res
     .status(201)
@@ -119,7 +112,7 @@ const loginUser = asyncHandler(async (req, res) => {
   // Give response to user.
 
   const { email, username, password } = req.body;
-  if (!email || !username) {
+  if (!email && !username) {
     throw new ApiError(400, "Username or email is required");
   }
   if (!password) {
@@ -131,7 +124,6 @@ const loginUser = asyncHandler(async (req, res) => {
   });
 
   const passwordCorrect = await user.checkPassword(password);
-
   if (!passwordCorrect) {
     throw new Error(400, "Incorrect user credentials.");
   }
@@ -196,4 +188,4 @@ const logoutUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(400, {}, "User Logged Out"));
 });
 
-export { registerUser, loginUser };
+export { registerUser, loginUser ,logoutUser};
