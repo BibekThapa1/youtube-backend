@@ -6,7 +6,7 @@ cloudinary.config({
   api_key: process.env.CLOUD_API_KEY,
   api_secret: process.env.CLOUD_API_SECRET,
 });
-     
+
 async function uploadOnCloudinary(localFilePath) {
   try {
     if (!localFilePath) return null;
@@ -15,7 +15,7 @@ async function uploadOnCloudinary(localFilePath) {
     });
     // file has been uploaded suscessfully
     console.log("File Upload Response: ", uploadResult);
-    fs.unlinkSync(localFilePath)
+    fs.unlinkSync(localFilePath);
     return uploadResult;
   } catch (error) {
     fs.unlinkSync(localFilePath);
@@ -24,4 +24,24 @@ async function uploadOnCloudinary(localFilePath) {
   }
 }
 
-export {uploadOnCloudinary}
+// Function to extract public ID from Cloudinary URL
+function extractPublicId(url) {
+  const parts = url.split("/");
+  const lastPart = parts[parts.length - 1];
+  const publicIdWithExtension = lastPart.split(".")[0];
+  return publicIdWithExtension;
+}
+
+// Delete file from cloudinary
+async function deleteImageFromCloudinary(imageUrl) {
+  const publicId = extractPublicId(imageUrl);
+  try {
+    await cloudinary.uploader.destroy(publicId);
+    console.log("Deleted from cloudinary")
+  } catch (error) {
+    fs.unlinkSync(localFilePath);
+    return null;
+  }
+}
+
+export { uploadOnCloudinary, deleteImageFromCloudinary };

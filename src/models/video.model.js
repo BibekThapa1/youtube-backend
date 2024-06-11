@@ -11,6 +11,10 @@ const videoSchema = new Schema(
       type: String, // cloudinary url
       required: true,
     },
+    owner:{
+      type:Schema.Types.ObjectId,
+      ref:"User"
+    },
     title: {
       type: String,
       required: true,
