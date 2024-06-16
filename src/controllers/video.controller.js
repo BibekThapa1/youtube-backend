@@ -5,7 +5,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import {
-  deleteImageFromCloudinary,
+  deleteFromCloudinary,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 
@@ -24,6 +24,8 @@ const getAllVideos = asyncHandler(async (req, res) => {
     userId,
   } = req.query;
 
+  console.log(page, limit, query, sortBy, sortType, userId);
+
   const filter = userId ? { owner: userId } : {};
 
   if (query) {
@@ -35,9 +37,12 @@ const getAllVideos = asyncHandler(async (req, res) => {
     ];
   }
 
+  console.log("filter: ", filter);
+
   const sort = {};
   sort[sortBy] = sortType === "desc" ? -1 : 1;
 
+  console.log("sortBy", sort);
   const skip = (page - 1) * limit; // Skips the datas according to the page count
 
   if (!userId) {
@@ -56,7 +61,7 @@ const getAllVideos = asyncHandler(async (req, res) => {
 
   return res
     .status(200)
-    .json(new ApiResponse(200, video, "Video fetched suscessfully"));
+    .json(new ApiResponse(200, video.docs, "Video fetched suscessfully"));
 });
 
 const publishAVideo = asyncHandler(async (req, res) => {
@@ -80,7 +85,7 @@ const publishAVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Video and thumbnail both are required");
   }
 
-  const uploadVideo = await uploadOnCloudinary(videoFileLocalPath);
+  const uploadVideo = await uploadOnCloudinary(videoFileLocalPath, "videos");
   if (!uploadVideo) {
     throw new ApiError(
       500,
@@ -88,7 +93,10 @@ const publishAVideo = asyncHandler(async (req, res) => {
     );
   }
 
-  const uploadThumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+  const uploadThumbnail = await uploadOnCloudinary(
+    thumbnailLocalPath,
+    "videos"
+  );
   if (!uploadThumbnail) {
     throw new ApiError(
       500,
@@ -161,20 +169,30 @@ const updateVideo = asyncHandler(async (req, res) => {
 
   let newThumbnail;
   if (thumbnailLocalPath) {
-    await deleteImageFromCloudinary(oldVideo.url);
-    newThumbnail = await uploadOnCloudinary(thumbnailLocalPath);
+    await deleteFromCloudinary(oldVideo.thumbnail, "videos","image");
+    newThumbnail = await uploadOnCloudinary(thumbnailLocalPath, "videos");
   }
 
-  const updatedVideo = await Video.findByIdAndUpdate(
-    videoId,
+  console.log(req.user._id);
 
+  const updatedVideo = await Video.findOneAndUpdate(
+    { _id: videoId, owner: req.user._id },
     {
       title,
       description,
-      thumbnail: newThumbnail.url,
+      thumbnail: newThumbnail?.url || oldVideo.thumbnail,
     },
     { new: true }
   );
+  // const updatedVideo = await Video.findByIdAndUpdate(
+  //   videoId,
+  //   {
+  //     title,
+  //     description,
+  //     thumbnail: newThumbnail?.url || oldVideo.thumbnail,
+  //   },
+  //   { new: true }
+  // );
 
   if (!updatedVideo) {
     throw new ApiError(
@@ -182,6 +200,10 @@ const updateVideo = asyncHandler(async (req, res) => {
       "Something went wrong while updating video details"
     );
   }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, updatedVideo, "Updated Suscessfully"));
 });
 
 const deleteVideo = asyncHandler(async (req, res) => {
@@ -203,7 +225,19 @@ const deleteVideo = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid video id");
   }
 
-  await Video.findByIdAndDelete(videoId);
+let video = await Video.findById(videoId)
+
+  await deleteFromCloudinary(video.videoFile, "videos","video");
+  await deleteFromCloudinary(video.thumbnail, "videos","image");
+
+
+   video = await Video.findOneAndDelete({
+    _id: videoId,
+    owner: req.user._id,
+  });
+
+
+  console.log(video);
 
   return res
     .status(200)
@@ -229,24 +263,27 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Invalid video id");
   }
 
-  const updatedVideo = await Video.findByIdAndUpdate(
-    videoId,
-    {
-      $set: { isPublished: { $not: "$isPublished" } },
-    },
+  console.log(req.user._id);
+
+  const updatedVideo = await Video.findOneAndUpdate(
+    { _id: videoId, owner: req.user._id },
+    [
+      {
+        $set: {
+          isPublsihed: { $eq: [false, "$isPublsihed"] },
+        },
+      },
+    ],
     { new: true }
   );
 
-  if(!updatedVideo){
-    throw new ApiError(500,"Error occured while updating the video")
+  if (!updatedVideo) {
+    throw new ApiError(500, "Error occured while updating the video");
   }
 
   return res
-  .status(200)
-  .json(
-    new ApiResponse(200,updateVideo,"Suscessfully updated the video")
-  )
-
+    .status(200)
+    .json(new ApiResponse(200, updatedVideo, "Suscessfully updated the video"));
 });
 
 export {

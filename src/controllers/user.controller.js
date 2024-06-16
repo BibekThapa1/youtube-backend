@@ -3,7 +3,8 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import {
-  deleteImageFromCloudinary,
+  deleteFromCloudinary,
+  unlinkFromDevice,
   uploadOnCloudinary,
 } from "../utils/cloudinary.js";
 import jwt from "jsonwebtoken";
@@ -54,6 +55,21 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   if (userExisted) {
+    const avatarLocalPath = req.files?.avatar[0]?.path;
+    //   cont coverImageLocalPath = req.files?.coverImage[0]?.path;
+
+    let coverImageLocalPath;
+    if (
+      req.files &&
+      Array.isArray(req.files.coverImage) &&
+      req.files.coverImage.length > 0
+    ) {
+      coverImageLocalPath = req.files.coverImage[0]?.path;
+    }
+
+    await unlinkFromDevice(avatarLocalPath);
+    await unlinkFromDevice(coverImageLocalPath);
+
     throw new ApiError(409, "Username or emails already exists.");
   }
 
@@ -73,8 +89,8 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Avatar file is required");
   }
 
-  const avatar = await uploadOnCloudinary(avatarLocalPath);
-  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+  const avatar = await uploadOnCloudinary(avatarLocalPath,"users");
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath,"users");
   console.log("avatar: ", avatar);
   if (!avatar) {
     throw new ApiError(400, "Error while uploading data.");
@@ -168,7 +184,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     id,
     {
       $unset: {
-        refreshToken: 1,  // this remove field form document.
+        refreshToken: 1, // this remove field form document.
       },
     },
     {
@@ -273,8 +289,8 @@ const updateCurrentPassword = asyncHandler(async (req, res) => {
 
   const user = await User.findById(req.user?._id);
 
-  const checkPassword = await user.checkPassword(oldPassword);
-  if (!checkPassword) {
+  const isPasswordCorrect = await user.checkPassword(oldPassword);
+  if (!isPasswordCorrect) {
     throw new ApiError(401, "Please enter correct old password.");
   }
 
@@ -286,41 +302,40 @@ const updateCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "Suscessfully changed password"));
 });
 
-const updateUserDetails = asyncHandler(async(req,res)=>{
+const updateUserDetails = asyncHandler(async (req, res) => {
   // Algorithm to update user details
   // Take username and email from the user
   // Validate the user name
   // Call database and update it
   // Retutn the updated data
 
-  let {fullName,email} = req.body
+  const { fullName, email } = req.body;
 
-  if(!(fullName && email)){
-    throw new ApiError(404,"fullName and email is required")
+  if (!(fullName && email)) {
+    throw new ApiError(404, "fullName and email is required");
   }
 
   const user = await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set:{
-        email:email,
-        fullName:fullName,
-      }
+      $set: {
+        email: email,
+        fullname: fullName,
+      },
     },
-    {new:true}
-  ).select("-password")
+    { new: true }
+  ).select("-password");
 
-  if(!user){
-    throw new ApiError(400,"Username not found")
+  if (!user) {
+    throw new ApiError(400, "Username not found");
   }
 
   return res
-  .status(200)
-  .json(
-    new ApiResponse(200,user,"Full name and email updated suscessfully")
-  )
-
-})
+    .status(200)
+    .json(
+      new ApiResponse(200, user, "Full name and email updated suscessfully")
+    );
+});
 
 const updateUserAvatar = asyncHandler(async (req, res) => {
   // Algorithm to update user avatar
@@ -335,7 +350,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Avatar file missing");
   }
 
-  const avatar = await uploadOnCloudinary(avatarImageLocalPath);
+  const avatar = await uploadOnCloudinary(avatarImageLocalPath,'users');
   if (!avatar) {
     throw new ApiError(
       500,
@@ -360,7 +375,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   if (!user) {
     throw new ApiError(500, "Error occured while updating avatar.");
   }
-  await deleteImageFromCloudinary(oldAvatarUrl.avatar);
+  await deleteFromCloudinary(oldAvatarUrl.avatar,"users","image");
 
   return res
     .status(200)
@@ -379,7 +394,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Cover file missing");
   }
 
-  const coverImage = await uploadOnCloudinary(coverImageLocalPath);
+  const coverImage = await uploadOnCloudinary(coverImageLocalPath,"users");
   if (!coverImage) {
     throw new ApiError(
       400,
@@ -399,7 +414,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     { new: true }
   ).select("-password");
 
-  await deleteImageFromCloudinary(oldCoverImageUrl.coverImage);
+  await deleteFromCloudinary(oldCoverImageUrl.coverImage,"users","image");
 
   if (!user) {
     throw new ApiError(500, "Error occured while updating coverImage.");
@@ -484,7 +499,7 @@ const getChannelInfo = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, channel[0], "user channel fetched suscesfully"));
 });
 
-const getUserHistory = asyncHandler(async(req,res)=>{
+const getUserHistory = asyncHandler(async (req, res) => {
   // Algorith to fetch user history
   // Search for user in database
   // Use aggregate pipeline to match watchstory video with video database
@@ -492,54 +507,60 @@ const getUserHistory = asyncHandler(async(req,res)=>{
   // $project the pipeline stage
   // Return response to the user
 
-  const userHistory = await User.aggregate(
+  const userHistory = await User.aggregate([
     {
-      $match:{
-        _id:new mongoose.Types.ObjectId(req.user._id)
-      }
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
     },
     {
-      $lookup:{
-        from:"videos",
-        localField:"watchHistory",
-        foreignField:"_id",
-        as:"watchHistory",
-        pipeline:[
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory",
+        pipeline: [
           {
-          $lookup:{
-            from:"users",
-            localField:"owner",
-            foreignField:"_id",
-            as:"owner",
-            pipeline:{
-              $project:{
-                fullName:1,
-                userName:1,
-                avatar:1
-              }
-            }
-          }
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner",
+              pipeline: [
+                {
+                  $project: {
+                    fullName: 1,
+                    userName: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            $addFields: {
+              owner: {
+                $first: "$owner",
+              },
+            },
+          },
+        ],
       },
-      {
-        $addFields:{
-          owner:{
-            $first:"$owner"
-          }
-        }
-      }
-    ]
-      }
-    }
-  )
+    },
+  ]);
+
+  console.log(userHistory);
 
   return res
-  .status(200)
-  .json(
-    new ApiResponse(200,userHistory[0].watchHistory,"User history fetched suscessfully")
-  )
-
-
-})
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        userHistory[0].watchHistory,
+        "User history fetched suscessfully"
+      )
+    );
+});
 
 export {
   registerUser,
@@ -552,5 +573,5 @@ export {
   updateUserAvatar,
   updateUserCoverImage,
   getChannelInfo,
-  getUserHistory
+  getUserHistory,
 };

@@ -5,7 +5,8 @@ import jwt from "jsonwebtoken"
 
 export const verifyJwtToken = asyncHandler(async (req, _,next)=>{
    try {
-     const ascessToken = req.cookies?.ascessToken || req.header("Authorization").replace("Bearer ","");
+     const ascessToken = req.cookies?.ascessToken || req.header("Authorization")?.replace("Bearer ","");
+    //  const token = req.cookies?.accessToken || req.header("Authorization")?.replace("Bearer ", "")
  
      if(!ascessToken){
          throw new ApiError(401,"Token not found");

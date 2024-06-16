@@ -1,17 +1,18 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
 
-cloudinary.config({
+await cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
   api_key: process.env.CLOUD_API_KEY,
   api_secret: process.env.CLOUD_API_SECRET,
 });
 
-async function uploadOnCloudinary(localFilePath) {
+async function uploadOnCloudinary(localFilePath, folder) {
   try {
     if (!localFilePath) return null;
     const uploadResult = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
+      folder,
     });
     // file has been uploaded suscessfully
     console.log("File Upload Response: ", uploadResult);
@@ -33,15 +34,25 @@ function extractPublicId(url) {
 }
 
 // Delete file from cloudinary
-async function deleteImageFromCloudinary(imageUrl) {
-  const publicId = extractPublicId(imageUrl);
+async function deleteFromCloudinary(fileUrl, folder,type = "auto") {
+  const publicId = extractPublicId(fileUrl);
+  console.log(`${folder}/${publicId}`);
   try {
-    await cloudinary.uploader.destroy(publicId);
-    console.log("Deleted from cloudinary")
+    console.log("entered");
+    const response = await cloudinary.uploader.destroy(`${folder}/${publicId}`, {
+      resource_type: type,
+    });
+    console.log("response : ", response);
+    console.log("Deleted from cloudinary");
   } catch (error) {
-    fs.unlinkSync(localFilePath);
+    // fs.unlinkSync(localFilePath);
+    console.log("error: ", error);
     return null;
   }
 }
 
-export { uploadOnCloudinary, deleteImageFromCloudinary };
+async function unlinkFromDevice(localFilePath) {
+  fs.unlinkSync(localFilePath);
+}
+
+export { uploadOnCloudinary, deleteFromCloudinary, unlinkFromDevice };
