@@ -19,6 +19,8 @@ const getVideoComments = asyncHandler(async (req, res) => {
   const { videoId } = req.params;
   const { page = 1, limit = 10 } = req.query;
 
+  const skip = (page - 1) * limit;
+
   if (!videoId) {
     throw new ApiError(400, "Video Id is required");
   }
@@ -30,42 +32,40 @@ const getVideoComments = asyncHandler(async (req, res) => {
         localField: "video",
         foreignField: "_id",
         as: "commentedVideo",
-        $project:{
-          videoFile:1,
-          title:1,
-          thumbnail:1
-        }
-      }
+        pipeline: [
+          {
+            $project: {
+              videoFile: 1,
+              title: 1,
+              thumbnail: 1,
+            },
+          },
+        ],
+      },
     },
     {
-      $addFields:{
-        commentedVideo:{
-          $first:"$commentedVideo"
-        }
-      }
+      $addFields: {
+        commentedVideo: {
+          $first: "$commentedVideo",
+        },
+      },
     },
     {
-    $match:{
-      video:new mongoose.Types.ObjectId(videoId)
-    }
-  }
-    // },
-
-    // // {
-    // //   $addFields:{
-    // //     CommentedPerson:{
-    // //       $arrayElmAt:["$CommentedPerson",0]
-    // //     }
-    // //   }
-    // // },
-    // {
-    //   $match: {
-    //     video: videoId,
-    //   },
-    // },
-    // {
-    //   $limit: 10,
-    
+      $match: {
+        video: new mongoose.Types.ObjectId(videoId),
+      },
+    },
+    {
+      $skip: skip,
+    },
+    {
+      $sort: {
+        createdAt: 1,
+      },
+    },
+    {
+      $limit: limit,
+    },
   ]);
 
   if (!comments) {
@@ -99,7 +99,7 @@ const addComment = asyncHandler(async (req, res) => {
 
   if (!(user && video)) {
     throw new ApiError(400, "Invalid user id");
-  } 
+  }
 
   console.log("comment: ", content);
 
@@ -128,11 +128,13 @@ const updateComment = asyncHandler(async (req, res) => {
   // Update the comment section
   // Return response
 
-  const { videoId } = req.params;
-  const { newComment, userId } = req.body;
+  const { commentId } = req.params;
+  const { newComment } = req.body;
 
-  if (!videoId) {
-    throw new ApiError(400, "Invalid video id");
+  const userId = req.user._id;
+
+  if (!(commentId && newComment)) {
+    throw new ApiError(400, "Invalid commentId and new comment");
   }
 
   const user = await User.findById(userId);
@@ -143,7 +145,7 @@ const updateComment = asyncHandler(async (req, res) => {
 
   const comment = await Comment.findOneAndUpdate(
     {
-      video: videoId,
+      _id: commentId,
     },
     {
       content: newComment,
@@ -168,19 +170,19 @@ const deleteComment = asyncHandler(async (req, res) => {
   // Search for comment matching video id
   // Delete from database model
 
-  const { videoId } = req.params;
-  const { userId } = req.body;
-  if (!videoId) {
+  const { commentId } = req.params;
+  const userId = req.user._id;
+  if (!commentId) {
     throw new ApiError(400, "Invalid video id");
   }
 
-  const user = findById(userId);
+  const user = await User.findById(userId);
 
   if (!user) {
     throw new ApiError(400, "Invalid video id");
   }
 
-  await Comment.deleteOne({ owner: user._id });
+  await Comment.findByIdAndDelete(commentId);
 
   return res
     .status(200)
