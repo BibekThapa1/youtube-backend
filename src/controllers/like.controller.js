@@ -5,123 +5,109 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const toggleVideoLike = asyncHandler(async (req, res) => {
-  const { videoId } = req.params;
   //TODO: toggle like on video
   // Algorithm to toggle liked videos
   // First of all check wether the video is already liked by the user or not
   // If not then create new document. If yes then delete that doucment
 
+  const { videoId } = req.params;
+
   if (!videoId) {
     throw new ApiError(400, "Video id is required");
   }
 
-  const like = await Like.findOneAndUpdate(
-    {
-      video: videoId,
-      likedBy: req.user._id,
-    },
-    {
-      $setOnInsert: {
-        video: videoId,
-        likedBy: req.user._id,
-      },
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-    }
-  );
+  let like = await Like.findOneAndDelete({
+    video: videoId,
+    likedBy: req.user._id,
+  });
 
-  if (like.lastErrorObject.updatedExisting) {
-    await Like.deleteOne({ video: videoId });
+  if (like) {
+    return res
+      .status(200)
+      .json(new ApiResponse(200, {}, "Removed like Suscessfully "));
+  }
+  like = await Like.create({
+    video: videoId,
+    likedBy: req.user._id,
+  });
+
+  if (!like) {
+    throw new ApiError(500, "Error occured while liking the video");
   }
 
   return res
     .status(200)
-    .json(
-      new ApiResponse(200, like, "Suscessfully toggled video Like function")
-    );
+    .json(new ApiResponse(200, like, "Suscessfully liked video"));
 });
 
 const toggleCommentLike = asyncHandler(async (req, res) => {
-  const { commentId } = req.params;
-  const { videoId } = req.params;
   //TODO: toggle like on comment
   // Algorithm to toggle comment like
   // Get params and user id
   // Check wether they exists or not. If not exist then create if exists than delete
+
+  const { commentId } = req.params;
+  const { videoId } = req.body;
+
   const userId = req.user._id;
 
-  if (!(commentId, userId)) {
-    throw new ApiError(400, "Invalid userId or commentId");
+  if (!(commentId, videoId)) {
+    throw new ApiError(400, "Invalid videoId or commentId");
   }
 
-  const like = await Like.findOneAndUpdate(
-    {
-      comment: commentId,
-      likedBy: userId,
-    },
-    {
-      $setOnInsert: {
-        video: videoId,
-        likedBy: userId,
-        comment: commentId,
-      },
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-    }
-  );
+  let like = await Like.findOneAndDelete({
+    comment: commentId,
+    likedBy: userId,
+  });
 
-  if (like.lastErrorObject.updatedExisting) {
-    await Like.deleteOne({ _id: like._id });
+  if (like) {
+    return res
+      .status(400)
+      .json(new ApiResponse(400, {}, "Suscessfully unliked comment"));
+  }
+
+  like = await Like.create({
+    comment: commentId,
+    likedBy: userId,
+  });
+
+  if (!like) {
+    throw new ApiError(500, "Error occured while liking it");
   }
 
   return res
     .status(200)
-    .json(
-      new ApiResponse(200, like, "Suscessfully toggled comment Like function")
-    );
+    .json(new ApiResponse(200, like, "Suscessfully liked the comment"));
 });
 
 const toggleTweetLike = asyncHandler(async (req, res) => {
-  const { tweetId } = req.params;
   //TODO: toggle like on tweet
+
+  const { tweetId } = req.params;
 
   if (!tweetId) {
     throw new ApiError(400, "Tweet Id is required");
   }
 
-  const like = await Like.findOneAndUpdate(
-    {
+  const existingLike = await Like.findOne({
+    likedBy: req.user._id,
+    tweet: tweetId,
+  });
+
+  let responseMsg;
+  let like = {};
+  if (existingLike) {
+    await Like.findByIdAndDelete(existingLike._id);
+    responseMsg = "suscessfully unliked tweet";
+  } else {
+    like = await Like.create({
       tweet: tweetId,
-      likedBy: userId,
-    },
-    {
-      $setOnInsert: {
-        video: videoId,
-        likedBy: userId,
-        comment: commentId,
-      },
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-    }
-  );
-
-  console.log(like);
-
-  if (like.lastErrorObject.updatedExisting) {
-    await Like.deleteOne({ _id: like._id });
+      likedBy: req.user._id,
+    });
+    responseMsg = "suscessfully like tweet";
   }
 
-  return res
-    .status(200)
-    .json(
-      new ApiResponse(200, like, "Suscessfully toggled tweet Like function")
-    );
+  return res.status(200).json(new ApiResponse(200, like, responseMsg));
 });
 
 const getLikedVideos = asyncHandler(async (req, res) => {
@@ -138,34 +124,50 @@ const getLikedVideos = asyncHandler(async (req, res) => {
   }
 
   const like = await Like.aggregate([
-    {
-      $lookup: {
-        from: "videos",
-        localField: "video",
-        foreignField: "_id",
-        as: "LikeWithVideoList",
-        LikeWithVideoList: {
-          $first: "$LikeWithVideoList",
-        },
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "likedBy",
-        foreignField: "_id",
-        as: "likeWithLikedPersonList",
-        likeWithLikedPersonList: {
-          $first: "$likeWithLikedPersonList",
-        },
-      },
-    },
-    {
-      $match: {
-        "likeWithLikedPersonList.id": userId,
-      },
-    },
-  ]);
+  {
+    $match:{
+      likedBy:userId,
+    }
+  },
+  {
+    $lookup:{
+      from:"videos",
+      localField:"video",
+      foreignField:"_id",
+      as:"videos",
+      pipeline:[
+        {
+          $project:{
+            _id:1,
+            thumbnail:1,
+            owner:1,
+            title:1,
+            duration:1,
+          }
+        }
+      ]
+    }
+  },
+  {
+    $addFields:{
+      videos:{
+        $first:"$videos"
+      }
+    }
+  },
+  {
+    $match:{
+      video:{
+        $exists:true
+      }
+    }
+  },
+  {
+    $project:{
+      videos:1
+    }
+  }
+  ])
 
   if (!like) {
     throw new ApiError(400, "There are no liked videos.");
@@ -177,3 +179,4 @@ const getLikedVideos = asyncHandler(async (req, res) => {
 });
 
 export { toggleCommentLike, toggleTweetLike, toggleVideoLike, getLikedVideos };
+

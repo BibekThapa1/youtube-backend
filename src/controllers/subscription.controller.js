@@ -13,9 +13,11 @@ const toggleSubscription = asyncHandler(async (req, res) => {
   // If exist then search for subscription data with existed data and delete it
   // If not existed then create it
   // Return response
+
   const { channelId } = req.params;
 
-  if (!channelId) {
+
+  if (!(channelId )) {
     throw new ApiError(400, "Channel id is required");
   }
 
@@ -33,13 +35,12 @@ const toggleSubscription = asyncHandler(async (req, res) => {
   if (subscriptionExisted) {
     return res
       .status(200)
-      .json(new ApiResponse(200, {}, "Suscessfully deleted "));
+      .json(new ApiResponse(200, {}, "Suscessfully unsubscribed "));
   }
 
   const subscription = await Subscription.create({
     channel: channelId,
-    subscriber: req.user,
-    _id,
+    subscriber: req.user._id,
   });
 
   if (!subscription) {
@@ -62,13 +63,13 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
   // match the channel id with the subscription model
   // use $lookup to get the user data
 
-  const { channelId } = req.params;
+  const { subscriberId } = req.params;
 
-  if (!channelId) {
+  if (!subscriberId) {
     throw new ApiError(400, "Channel Id is required");
   }
 
-  const isValidChannel = isValidObjectId(channelId);
+  const isValidChannel = isValidObjectId(subscriberId);
 
   if (!isValidChannel) {
     throw new ApiError(400, "Channel doesnot exist");
@@ -77,18 +78,47 @@ const getUserChannelSubscribers = asyncHandler(async (req, res) => {
   const subscribers = await Subscription.aggregate([
     {
       $match: {
-        channel: channelId,
+        channel: new mongoose.Types.ObjectId(subscriberId),
       },
     },
     {
       $lookup: {
         from: "users",
         localField: "subscriber",
-        foreignField: "_ic",
+        foreignField: "_id",
         as: "subscribers",
-        subscribers: {
-          $first: "$subscribers",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        subscriberInfoType: {
+          $type: "$subscribers",
         },
+      },
+    },
+    {
+      $addFields: {
+        subscribers: {
+          $cond: {
+            if: { $eq: ["$subscriberInfoType", "array"] },
+            then: { $first: "$subscribers" },
+            else: "$subscribers",
+          },
+        },
+      },
+    },
+
+    {
+      $project: {
+        subscribers: 1,
       },
     },
   ]);
@@ -110,21 +140,24 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
   // use look up to get the channel field
   // return response
 
-  const { subscriberId } = req.params;
-  if (!subscriberId) {
-    throw new ApiError(400, "subscriberId is required");
+  const { channelId } = req.params;
+
+  console.log(req.params);
+
+  if (!channelId) {
+    throw new ApiError(400, "channelId is required");
   }
 
-  const isValidSubscriber = isValidObjectId(subscriberId);
+  const isValidSubscriber = isValidObjectId(channelId);
 
   if (!isValidSubscriber) {
-    throw new ApiError(400, "Invalid subscriberId");
+    throw new ApiError(400, "Invalid channelId");
   }
 
   const channel = await Subscription.aggregate([
     {
       $match: {
-        subscriber: subscriberId,
+        subscriber: req.user._id,
       },
     },
     {
@@ -132,10 +165,38 @@ const getSubscribedChannels = asyncHandler(async (req, res) => {
         from: "users",
         localField: "channel",
         foreignField: "_id",
-        as: "subscribedChannels",
-        subscribedChannels: {
-          $first: "$subscribedChannels",
+        as: "channelInfo",
+        pipeline: [
+          {
+            $project: {
+              username: 1,
+              avatar: 1,
+            },
+          },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        channelTypeInfo: {
+          $type: "$channelInfo",
         },
+      },
+    },
+    {
+      $addFields: {
+        channelInfo: {
+          $cond: {
+            if: { $eq: ["$channelTypeInfo", "array"] },
+            then: { $first: "$channelInfo" },
+            else: "$channelInfo",
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        channelInfo: 1,
       },
     },
   ]);

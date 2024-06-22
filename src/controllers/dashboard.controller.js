@@ -14,7 +14,9 @@ const getChannelStats = asyncHandler(async (req, res) => {
     // Search for likes modal and count the total no.of like related to video and total views
     // Get the subscriber count from subscription modal
 
-    const channelId = req.body;
+    const {channelId} = req.body;
+
+    console.log(channelId);
 
     if(!channelId){
         throw new ApiError(400,"Invalid channel Id")
@@ -23,23 +25,19 @@ const getChannelStats = asyncHandler(async (req, res) => {
     const video = await Video.aggregate([
         {
             $match:{
-                owner:req.user._id,
+                owner: new mongoose.Types.ObjectId(channelId),
+               
+            }
+        },
+        {
+            $group:{
+                _id:null,
+                totalViews:{
+                    $sum:"$views",
+                },
                 totalVideos:{
-                    $sum:1,
+                    $sum:1
                 }
-            }
-        },
-        {
-            $addFields:{
-                totalVideoViews:{
-                    $sum:"$views"
-                } 
-            }
-        },
-        {
-            $project:{
-                totalLikes:1,
-                totalVideoViews:1,
             }
         }
 
@@ -52,50 +50,29 @@ const getChannelStats = asyncHandler(async (req, res) => {
     const subscription = await Subscription.aggregate([
         {
             $match:{
-                channel:req.user._id,
-                totalSubscribers:{
-                    $sum:1,
-                }
+                channel:new mongoose.Types.ObjectId(channelId),
             }
         },
         {
-            $project:{
-                totalSubscribers:1,
-            }
+            $count:"totalSubscribers"
         }
     ])
     
+console.log("Subscription: ",subscription);
+
      if(!subscription){
         throw new ApiError(400,"Error Occured while fetching subscription aggregation")
     }
 
     const likes = await Like.aggregate([
         {
-            $lookup:{
-                from:"Video",
-                localField:"video",
-                foreignField:"_id",
-                as:"videoInfo",
-                $addFields:{
-                    ownerInfo:{
-                        $first:"$videoInfo"
-                    }
-                }
+            $match:{
+                video:channelId
             }
         },
         {
-        $match:{
-            "videoInfo.owner":req.user._id,
-            totalLikes:{
-                $sum:1,
-            }
+            $count:"totalLikes"
         }
-    },
-    {
-        $project:{
-            totalLikes:1,
-        }
-    }
     ])
 
     if(!likes){
@@ -124,7 +101,7 @@ const getChannelVideos = asyncHandler(async (req, res) => {
    const videos = await Video.aggregate([
     {
         $match:{
-            owner:channelId
+            owner:new mongoose.Types.ObjectId(channelId)
         }
     }
    ])
@@ -145,3 +122,4 @@ export {
     getChannelStats, 
     getChannelVideos
     }
+

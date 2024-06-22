@@ -43,7 +43,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
     throw new ApiError(400, "UserId is required");
   }
 
-  const tweet = await Tweet.findOne({ owner: userId });
+  const tweet = await Tweet.find({ owner: userId });
 
   if (!tweet) {
     throw new ApiError(400, "tweets not found");
@@ -59,7 +59,7 @@ const updateTweet = asyncHandler(async (req, res) => {
   //  Get content from request.body
   // Find the tweet through userId and update
   // return response
-
+  const { tweetId } = req.params;
   const { newContent } = req.body;
 
   if (!newContent) {
@@ -68,13 +68,25 @@ const updateTweet = asyncHandler(async (req, res) => {
 
   const tweet = await Tweet.findOneAndUpdate(
     {
-      owner: req.user._id,
+      _id:tweetId,
+      owner:req.user._id
     },
     {
       content: newContent,
     },
     { new: true }
   );
+
+if(!tweet){
+  throw new ApiError(400,"Invalid tweet Id");
+}
+
+return res
+.status(200)
+.json(
+  new ApiResponse(200,tweet,"Tweet updated suscessfully")
+)
+
 });
 
 const deleteTweet = asyncHandler(async (req, res) => {
