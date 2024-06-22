@@ -4,11 +4,11 @@ This repository contains the backend code for a YouTube-like application. The pr
 
 ## Table of Contents
 
-Features
-Installation
-Usage
-Configuration
-API Endpoints
+-Features
+-Installation
+-Usage
+-Configuration
+-API Endpoints
 Technologies Used
 Contributing
 License
