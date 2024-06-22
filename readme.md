@@ -60,6 +60,24 @@ PUT /api/comments/:id: Edit a comment
 
 DELETE /api/comments/:id: Delete a comment
 
+<-- Likes -->
+
+POST /api/tweets/like: Like a tweet
+
+POST /api/tweets/unlike: Unlike a tweet
+
+GET /api/tweets/likes: Get likes for a tweet
+
+<--Tweets-->
+POST /api/tweets: Create a new tweet
+
+GET /api/tweets: Get all tweets
+
+GET /api/tweets/:id : Get tweet details
+
+PUT /api/tweets/:id : Update a tweet
+
+DELETE /api/tweets/:id : Delete a tweet
 
 ## Technologies Used
 
